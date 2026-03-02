@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from ...config import Config
 from transformers import AutoModelForMaskedLM, AutoTokenizer
-
+from typing import List
 
 class CNRoberta(nn.Module):
     def __init__(self, base_path, tts_config: Config):
@@ -14,7 +14,7 @@ class CNRoberta(nn.Module):
         if tts_config.is_half: 
             self.bert_model = self.bert_model.half()
     
-    def forward(self, texts: list[str], word2ph_list: list[list[int]]):
+    def forward(self, texts: List[str], word2ph_list: List[List[int]]):
         with torch.no_grad():
             sep = self.tokenizer.sep_token
             combined_text = sep.join(texts)

@@ -71,7 +71,7 @@ def segment_language_text(text):
                     tokens[i]['lang'] = 'ja'
                     break
             
-            for j in range(i+1, end+1):
+            for j in range(i+1, end):
                 if tokens[j]['lang'] == 'punc':
                     break
                 if tokens[j]['lang'] == 'ja':

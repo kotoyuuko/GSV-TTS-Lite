@@ -2,6 +2,7 @@ import re
 
 import cn2an
 from pypinyin import lazy_pinyin, Style
+from typing import List
 
 from ..Symbols import punctuation
 from .tone_sandhi import ToneSandhi
@@ -115,7 +116,7 @@ class ChineseG2P:
             finals.append(v)
         return initials, finals
 
-    def _merge_erhua(self, initials: list[str], finals: list[str], word: str, pos: str) -> list[list[str]]:
+    def _merge_erhua(self, initials: List[str], finals: List[str], word: str, pos: str) -> List[List[str]]:
         """
         Do erhub.
         """
