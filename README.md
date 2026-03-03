@@ -83,19 +83,15 @@
 
 ### 环境准备
 
-- **Anaconda**
 - **CUDA Toolkit**
 - **Microsoft Visual C++**
 
-### 安装步骤
+### 安装部署
 
 #### 1. 环境配置
-建议使用 Python >=3.10 创建虚拟环境，并安装必要的系统依赖 `ffmpeg`。
+建议使用 Python>=3.10 创建虚拟环境。
 ```bash
-conda create -n gsv-tts python=3.11
-conda activate gsv-tts
-conda install "ffmpeg"
-
+# 安装 PyTorch
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 ```
 #### 2. 安装 GSV-TTS-Lite
