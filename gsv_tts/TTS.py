@@ -62,6 +62,7 @@ class TTS:
         self.tts_config = Config()
         
         if not device is None:
+            assert device == "cpu" "CPU inference is not supported."
             self.tts_config.device = device
         if not is_half is None:
             self.tts_config.is_half = is_half
@@ -417,7 +418,8 @@ class TTS:
                         last_end_s = subtitles[-1]['end_s']
 
                     if subtitles:
-                        subtitles = sub2text_index(subtitles, norm_text, text, start_idx=cur_text_l, end_idx=cur_text_l+len(text_cut))
+                        subtitles = sub2text_index(subtitles, norm_text, text_cut)
+                        self._increment_subtitle_indices(subtitles, cur_text_l)
                         new_subtitles = subtitles[last_subtitles_end:]
                         last_subtitles_end = len(subtitles)-1
                         if not is_final and new_subtitles: new_subtitles[-1]['end_s'] = None
@@ -571,7 +573,7 @@ class TTS:
             all_bert2 = []
             all_norm_text = []
 
-            for i in range(0, len(texts), bert_batch_size):
+            for i in tqdm(range(0, len(texts), bert_batch_size)):
                 batch_texts = texts[i : i + bert_batch_size]
                 
                 batch_phones2, batch_word2ph, batch_bert2, batch_norm_text = get_phones_and_bert(batch_texts, self.tts_config)
@@ -586,9 +588,9 @@ class TTS:
             all_bert_features = []
             all_ge = []
 
-            for items in zip(texts, spk_audio_paths, prompt_audio_paths, prompt_audio_texts, all_phones2, all_bert2):
+            for items in zip(spk_audio_paths, prompt_audio_paths, prompt_audio_texts, all_phones2, all_bert2):
         
-                (text, spk_audio_path, prompt_audio_path, prompt_audio_text, phones2, bert2) = items
+                (spk_audio_path, prompt_audio_path, prompt_audio_text, phones2, bert2) = items
 
                 if prompt_audio_path not in self.prompt_audio_cache:
                     self.cache_prompt_audio(prompt_audio_paths=prompt_audio_path, prompt_audio_texts=prompt_audio_text)
@@ -724,6 +726,8 @@ class TTS:
                         subtitle[0]["start_s"] += head_offset / self.samplerate
                         subtitle[-1]["end_s"] -= tail_offset / self.samplerate
 
+                        subtitle = sub2text_index(subtitle, all_norm_text[curr_orig_indices[j]], texts[curr_orig_indices[j]])
+
                         generated_audios.append(audio)
                         generated_subtitles.append(subtitle)
                 else:
@@ -748,9 +752,9 @@ class TTS:
                 if return_subtitles:
                     ordered_subtitles[original_pos] = generated_subtitles[current_pos]
 
+            last_orig_idx = None
             final_ordered_audios = [[] for _ in range(n_orig)]
             final_ordered_subtitles = [[] for _ in range(n_orig)]
-            ordered_norm_texts = ["" for _ in range(n_orig)]
             for i, (audio_data, subtitle) in enumerate(zip(ordered_audios, ordered_subtitles)):
                 orig_idx = segment_to_original_map[i]
                 final_ordered_audios[orig_idx].append(audio_data)
@@ -763,13 +767,18 @@ class TTS:
                 final_ordered_audios[orig_idx].append(silence)
 
                 if return_subtitles:
+                    if orig_idx != last_orig_idx:
+                        cur_text_l = 0
+                        last_orig_idx = orig_idx
+
                     subtitle[-1]["end_s"] += cut_mute * cut_mute_scale
+                    self._increment_subtitle_indices(subtitle, cur_text_l)
                     final_ordered_subtitles[orig_idx].append(subtitle)
-                
-                ordered_norm_texts[orig_idx] += all_norm_text[i]
+
+                    cur_text_l += len(texts[i])
             
             result = []
-            for audio_list, subtitles_list, norm_text, orig_text in zip(final_ordered_audios, final_ordered_subtitles, ordered_norm_texts, orig_texts):
+            for audio_list, subtitles_list, orig_text in zip(final_ordered_audios, final_ordered_subtitles, orig_texts):
                 audio = np.concatenate(audio_list)
                 audio_len_s = len(audio) / self.samplerate
 
@@ -777,7 +786,6 @@ class TTS:
                 
                 if return_subtitles:
                     subtitle = self._cat_subtitles(*subtitles_list)
-                    subtitle = sub2text_index(subtitle, norm_text, orig_text)
                     result.append(AudioClip(self.audio_queue, audio, self.samplerate, audio_len_s, subtitle, orig_text))
                 else:
                     result.append(AudioClip(self.audio_queue, audio, self.samplerate, audio_len_s, None, orig_text))
@@ -951,13 +959,13 @@ class TTS:
             if speaker1_audio in self.spk_audio_cache:
                 sv_emb1 = self.spk_audio_cache[speaker1_audio]["sv_emb"]
             else:
-                _, audio_tensor = self._get_spepc(model.hps, speaker1_audio)
+                _, audio_tensor = self._get_spec(model.hps, speaker1_audio)
                 sv_emb1 = self.sv_model.compute_embedding3(audio_tensor)
             
             if speaker2_audio in self.spk_audio_cache:
                 sv_emb2 = self.spk_audio_cache[speaker2_audio]["sv_emb"]
             else:
-                _, audio_tensor = self._get_spepc(model.hps, speaker2_audio)
+                _, audio_tensor = self._get_spec(model.hps, speaker2_audio)
                 sv_emb2 = self.sv_model.compute_embedding3(audio_tensor)
             
             similarity = torch.cosine_similarity(sv_emb1, sv_emb2, dim=-1, eps=1e-6)
@@ -1082,7 +1090,7 @@ class TTS:
                 self.sv_model = ERes2Net(self.sv_path, self.tts_config)
 
             for spk_audio_path in spk_audio_paths:
-                refers, audio_tensor = self._get_spepc(model.hps, spk_audio_path)
+                refers, audio_tensor = self._get_spec(model.hps, spk_audio_path)
                 sv_emb = self.sv_model.compute_embedding3(audio_tensor)
                 ge = model.vq_model.get_ge(refers, sv_emb)
                 self.spk_audio_cache[spk_audio_path] = {
@@ -1247,11 +1255,11 @@ class TTS:
             self.resample_transform_dict[key] = torchaudio.transforms.Resample(sr0, sr1).to(self.tts_config.device)
         return self.resample_transform_dict[key](audio_tensor)
     
-    def _get_spepc(self, hps, filename):
+    def _get_spec(self, hps, filename):
         sr1 = int(hps.data.sampling_rate)
         audio, sr0 = torchaudio.load(filename)
 
-        audio = audio.to(self.tts_config.device)
+        audio = audio.to(self.tts_config.device).float()
         if audio.shape[0] == 2:
             audio = audio.mean(0).unsqueeze(0)
         if sr0 != sr1:
@@ -1272,7 +1280,7 @@ class TTS:
 
         spec = spec.to(self.tts_config.dtype)
         audio = self._resample(audio, sr1, 16000)
-        if self.tts_config.is_half: audio = audio.half()
+        audio = audio.to(self.tts_config.dtype)
 
         return spec, audio
     
@@ -1400,6 +1408,11 @@ class TTS:
             last_end_s = subtitles[-1]["end_s"]
 
         return result
+    
+    def _increment_subtitle_indices(self, subtitles, increment):
+        for subtitle in subtitles:
+            subtitle["orig_idx_start"] += increment
+            subtitle["orig_idx_end"] += increment
 
     def _viterbi_monotonic(self, attn: torch.Tensor):
         B, T, N = attn.shape

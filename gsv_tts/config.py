@@ -1,24 +1,22 @@
 import torch
 
 def get_device_info(idx: int):
-    cpu_config = (torch.device("cpu"), torch.float32, 0.0, 0.0)
-    
     if not torch.cuda.is_available() or idx >= torch.cuda.device_count():
-        return cpu_config
+        return None
 
     try:
         props = torch.cuda.get_device_properties(idx)
     except Exception:
-        return cpu_config
+        return None
 
     name = props.name
     major, minor = props.major, props.minor
     sm_version = major + minor / 10.0
     mem_gb = props.total_memory / (1024**3)
 
-    # 显存小于 4GB 或算力太低（Pascal 架构之前的旧卡），回退到 CPU
-    if mem_gb < 4 or sm_version < 5.3:
-        return cpu_config
+    # 算力太低（Pascal 架构之前的旧卡），返回 None
+    if sm_version < 5.3:
+        return None
 
     device = torch.device(f"cuda:{idx}")
     
@@ -32,24 +30,32 @@ def get_device_info(idx: int):
     if sm_version > 6.1:
         return device, torch.float16, sm_version, mem_gb
 
-    return cpu_config
+    return None
+
+if not torch.cuda.is_available():
+    raise RuntimeError(
+        "NVIDIA CUDA environment not detected. This application requires an NVIDIA GPU to run. "
+        "Please check your graphics drivers and CUDA installation."
+    )
 
 GPU_COUNT = torch.cuda.device_count()
 available_devices = []
 
 for i in range(GPU_COUNT):
     info = get_device_info(i)
-    if info[0].type != "cpu":
+    if info is not None:
         available_devices.append(info)
 
 if available_devices:
     best_info = max(available_devices, key=lambda x: (x[2], x[3]))
     infer_device = best_info[0]
-    
     is_half = any(dtype == torch.float16 for _, dtype, _, _ in available_devices)
 else:
-    infer_device = torch.device("cpu")
-    is_half = False
+    RuntimeError(
+        "No compatible NVIDIA GPU found!\n"
+        "Compute Capability: 5.3 or higher (Maxwell architecture and above).\n"
+        "Please verify your hardware specifications."
+    )
 
 
 class Config:

@@ -7,7 +7,6 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .module import commons
 from .module import modules
 from .module import attentions
 from torch.nn import Conv1d, ConvTranspose1d
@@ -348,8 +347,7 @@ class SynthesizerTrn(nn.Module):
         torch.cuda.current_stream().wait_stream(s)
     
     def get_ge(self, refer, sv_emb):
-        refer_lengths = torch.LongTensor([refer.size(2)]).to(refer.device)
-        refer_mask = torch.unsqueeze(commons.sequence_mask(refer_lengths, refer.size(2)), 1).to(refer.dtype)
+        refer_mask = torch.ones((1, 1, refer.size(2)), dtype=refer.dtype, device=refer.device)
         ge = self.ref_enc(refer[:, :704] * refer_mask, refer_mask)
         sv_emb = self.sv_emb(sv_emb)
         ge += sv_emb.unsqueeze(-1)

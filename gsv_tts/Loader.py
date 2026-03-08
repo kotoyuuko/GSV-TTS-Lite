@@ -60,7 +60,7 @@ def get_sovits_weights(sovits_path, tts_config: Config):
         
         vq_model = vq_model.to_empty(device=tts_config.device)
 
-        if tts_config.is_half: vq_model.half()
+        if tts_config.is_half: vq_model = vq_model.half()
         
         load_model(vq_model, os.path.join(sovits_path, "model.safetensors"))
     else:

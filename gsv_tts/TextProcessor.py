@@ -225,7 +225,7 @@ def linear_interpolate(indices):
 
     return result
 
-def sub2text_index(subtitles, norm_text: str, orig_text: str, start_idx: int = 0, end_idx: int = None):
+def sub2text_index(subtitles, norm_text: str, orig_text: str):
     idx = 0
     sub_norm_idx = []
     for subtitle in subtitles:
@@ -234,22 +234,11 @@ def sub2text_index(subtitles, norm_text: str, orig_text: str, start_idx: int = 0
         sub_norm_idx.append({"start":idx, "end":idx+len(text)-1})
 
     orig_split_text = split_text(orig_text)
-
-    if end_idx is None: end_idx = len(orig_text)-1
-    last_l = 0
-    start_split_idx = 0
-    end_split_idx = 0
-    for i in orig_split_text:
-        last_l += len(i)
-        if last_l <= start_idx:
-            start_split_idx += 1
-        if last_l <= end_idx:
-            end_split_idx += 1
-    
     norm_split_text = split_text(norm_text)
+    
     norm_split_orig_idx = []
     for t1 in norm_split_text:
-        indices = [i for i, t2 in enumerate(orig_split_text) if t2 == t1 and i >= start_split_idx and i <= end_split_idx]
+        indices = [i for i, t2 in enumerate(orig_split_text) if t2 == t1]
         norm_split_orig_idx.append(indices)
 
     norm_split_orig_idx = LIS_mapping(norm_split_orig_idx)
