@@ -46,7 +46,7 @@ Beyond the leap in performance, **GSV-TTS-Lite** implements the **decoupling of 
 
 To facilitate integration for developers, **GSV-TTS-Lite** features a significantly streamlined code architecture and is available on PyPI as the `gsv-tts-lite` library, supporting one-click installation via `pip`.
 
-The currently supported languages are Chinese, Japanese, and English. The available models include v2pro and v2proplus.
+The currently supported languages are **Chinese, Japanese, and English**. The available models include **v2pro and v2proplus**.
 ## Performance Comparison
 
 > [!NOTE]
@@ -61,44 +61,25 @@ The currently supported languages are Chinese, Japanese, and English. The availa
 As shown, **GSV-TTS-Lite** achieves **3x ~ 4x** speed improvements while **halving** the VRAM usage! 🚀
 <br>
 
-## One-click Download (Pre-configured)
-
-> [!TIP]
-> If you are a beginner looking for a quick start, you can download the pre-configured integrated package.
-
-- **Hardware Requirements**:
-  - **OS**: Windows only.
-  - **GPU**: NVIDIA GPU with at least **4GB** VRAM.
-  - **VRAM Note**: The `Qwen3-ASR` model is integrated by default. If VRAM is insufficient, you can disable the ASR module via parameters in `go-webui.bat` to save space.
-- **Download Link**: [Placeholder]
-- **Instructions**:
-  1. Download and extract the package (ensure the path contains no Chinese characters).
-  2. Double-click `go-webui.bat` and wait for the web UI to launch.
-  3. Start experiencing high-speed voice synthesis!
-
 ## Deployment (For Developers)
 
 ### Prerequisites
 
-- **Anaconda**
 - **CUDA Toolkit**
 - **Microsoft Visual C++**
 
 ### Installation Steps
 
 #### 1. Environment Configuration
-It is recommended to create a virtual environment using Python >=3.10 and install the necessary system dependency `ffmpeg`.
+It is recommended to create a virtual environment using Python >=3.10.
 ```bash
-conda create -n gsv-tts python=3.11
-conda activate gsv-tts
-conda install "ffmpeg"
-
+# Install PyTorch
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 ```
 #### 2.	Install GSV-TTS-Lite
 If you have prepared the above basic environment, you can directly execute the following command to complete the integration:
 ```bash
-pip install gsv-tts-lite --prefer-binary
+pip install gsv-tts-lite==0.2.6 --prefer-binary
 ```
 
 ### Quick Start
@@ -111,24 +92,36 @@ pip install gsv-tts-lite --prefer-binary
 from gsv_tts import TTS
 
 tts = TTS()
+# tts = TTS(use_bert=True) # Recommended setting for better Chinese synthesis results.
+# tts = TTS(use_flash_attn=True) # Recommended setting if Flash Attention is installed.
 
-# Load GPT model weights from the specified path into memory; here, the default model is loaded.
+# Load GPT model weights from the specified path into memory; loads the default model here.
 tts.load_gpt_model()
 
-# Load SoVITS model weights from the specified path into memory; here, the default model is loaded.
+# Load SoVITS model weights from the specified path into memory; loads the default model here.
 tts.load_sovits_model()
 
+# Pre-load and cache resources to significantly reduce latency during the first inference.
+# tts.init_language_module("ja")
+# tts.cache_spk_audio("examples\laffey.mp3")
+# tts.cache_prompt_audio(
+#     prompt_audio_paths="examples\AnAn.ogg",
+#     prompt_audio_texts="ちが……ちがう。レイア、貴様は間違っている。",
+# )
 
-# infer is the simplest and most primitive inference method, suitable for short text inference.
+# 'infer' is the simplest and most basic inference method, suitable for short text generation.
 audio = tts.infer(
-    spk_audio_path="examples\laffey.mp3", # Speaker reference audio
-    prompt_audio_path="examples\AnAn.ogg", # Prompt reference audio
-    prompt_audio_text="ちが……ちがう。レイア、貴様は間違っている。", # Text corresponding to the prompt audio
-    text="へぇー、ここまでしてくれるんですね。", # Target text to generate
+    spk_audio_path="examples\laffey.mp3", # Voice reference audio (Timbre)
+    prompt_audio_path="examples\AnAn.ogg", # Style reference audio (Prompt)
+    prompt_audio_text="ちが……ちがう。レイア、貴様は間違っている。", # The corresponding text for the style reference audio
+    text="へぇー、ここまでしてくれるんですね。", # Target text to be generated
+    # gpt_model = None, # Path to the GPT model for inference; defaults to the first loaded GPT model.
+    # sovits_model = None, # Path to the SoVITS model for inference; defaults to the first loaded SoVITS model.
 )
 
 audio.play()
 tts.audio_queue.wait()
+# tts.audio_queue.stop() # Stop playback
 ```
 
 #### 2. Stream Inference / Subtitle Synchronization
