@@ -512,7 +512,7 @@ class TTS:
 
             logging.info(f"Starting batched TTS inference: processing {n} text segments.")
 
-            if isinstance(spk_audio_paths, str):
+            if isinstance(spk_audio_paths, (str,dict)):
                 spk_audio_paths = [spk_audio_paths]*n
             if isinstance(prompt_audio_paths, str):
                 prompt_audio_paths = [prompt_audio_paths]*n
