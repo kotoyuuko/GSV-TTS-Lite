@@ -29,6 +29,7 @@ class MRTE(nn.Module):
             start = slice_indices[:, 0].unsqueeze(-1)
             end = slice_indices[:, 1].unsqueeze(-1)
             attn_mask = (text_range >= start) & (text_range < end)
+            attn_mask[:, -1] = True # 确保 nullkey 能被关注到
             attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
 
         ssl_enc = self.c_pre(ssl_enc * ssl_mask)

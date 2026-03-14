@@ -62,7 +62,6 @@ class TTS:
         self.tts_config = Config()
         
         if not device is None:
-            assert device == "cpu" "CPU inference is not supported."
             self.tts_config.device = device
         if not is_half is None:
             self.tts_config.is_half = is_half

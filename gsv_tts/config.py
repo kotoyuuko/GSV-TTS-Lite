@@ -1,5 +1,4 @@
 import torch
-import platform
 
 def get_cuda_device_info(idx: int):
     """获取 CUDA 设备信息"""
@@ -77,14 +76,12 @@ if infer_device is None:
         infer_device = mps_info[0]
         is_half = False  # MPS 使用 float32
         device_type = "mps"
-        print(f"[INFO] 使用 Apple Silicon MPS 后端")
 
 # 如果没有可用的 GPU，使用 CPU
 if infer_device is None:
     infer_device = torch.device("cpu")
     is_half = False  # CPU 使用 float32
     device_type = "cpu"
-    print(f"[WARNING] 未检测到支持的 GPU，使用 CPU 推理（速度较慢）")
 
 
 class Config:
