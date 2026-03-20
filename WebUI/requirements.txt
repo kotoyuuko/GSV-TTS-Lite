@@ -4,3 +4,5 @@ pedalboard
 pyloudnorm
 gradio
 qwen-asr
+psutil
+soundfile
