@@ -1,4 +1,3 @@
-static-ffmpeg
 einops
 tqdm
 torchcodec
@@ -9,6 +8,7 @@ numpy
 py3langid
 pysbd
 onnxruntime
+soundfile
 
 # en
 nltk
