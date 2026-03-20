@@ -21,14 +21,14 @@ from torch.nn import functional as F
 from safetensors.torch import save_model
 
 from .Loader import get_gpt_weights, get_sovits_weights, Gpt, Sovits
-from .download import check_pretrained_models, download_model
+from .Download import check_pretrained_models, download_model
 from .TextProcessor import get_phones_and_bert, cut_text, sub2text_index
 from .GPT_SoVITS.Featurizer import CNHubert, CNRoberta
 from .GPT_SoVITS.SV import ERes2Net
 from .GPT_SoVITS.SoVITS.module.mel_processing import spectrogram_torch
 from .GPT_SoVITS.G2P import text_to_phonemes
 from .Player import AudioQueue, AudioClip
-from .config import Config, global_config
+from .Config import Config, global_config
 
 
 class TTS:
@@ -41,6 +41,7 @@ class TTS:
         is_half: bool = None,
         use_flash_attn: bool = False,
         use_bert: bool = False,
+        use_jieba_fast: bool = False,
         always_load_cnhubert: bool = False,
         always_load_sv: bool = False,
     ):
@@ -55,6 +56,7 @@ class TTS:
             is_half (bool): Whether to use half-precision (FP16) inference.
             use_flash_attn (bool): Whether to enable Flash Attention for faster inference.
             use_bert (bool): Whether to use BERT for enhanced Chinese semantic understanding.
+            use_jieba_fast (bool): Whether to use jieba-fast for faster Chinese text segmentation.
             always_load_cnhubert (bool): Whether to keep the CNHubert model loaded in VRAM. Set to True to accelerate Voice Conversion.
             always_load_sv (bool): Whether to keep the Speaker Verification model loaded in VRAM. Set to True to accelerate Speaker Verification.
         """
@@ -73,6 +75,7 @@ class TTS:
         if models_dir is None: models_dir = Path.home() / ".cache" / "gsv"
         self.models_dir = models_dir
         if global_config.models_dir is None: global_config.models_dir = models_dir
+        if global_config.use_jieba_fast is None: global_config.use_jieba_fast = use_jieba_fast
         self.tts_config.use_flash_attn = use_flash_attn
         self.tts_config.gpt_cache = gpt_cache
         self.tts_config.sovits_cache = sovits_cache
@@ -100,7 +103,7 @@ class TTS:
         self.cnhubert_model = None
         self.sv_model = None
 
-        self.punctuation = {".", "。", "?", "？", "!", "！", ",", "，", ":", "：", ";", "；", "、", "・"}
+        self.punctuation = (".", "。", "?", "？", "!", "！", ",", "，", ":", "：", ";", "；", "、", "~", "・", "…")
 
         self.samplerate = 32000
         self.gpt_hz = 25
@@ -157,7 +160,7 @@ class TTS:
         """
 
         try:
-            if text[-1] not in self.punctuation:
+            if not self.check_pause(text):
                 text += "."
 
             if len(text) > 20:
@@ -212,7 +215,7 @@ class TTS:
             assign = self._viterbi_monotonic(attn)
             subtitles = self._get_subtitles(word2ph, assign, speed)
 
-            if subtitles[-1]['text'] not in self.punctuation:
+            if not self.check_pause(subtitles[-1]['text']):
                 subtitles.append({
                     "text": word2ph['word'][-1],
                     "start_s": subtitles[-1]['end_s'],
@@ -301,7 +304,7 @@ class TTS:
         """
 
         try:
-            if text[-1] not in self.punctuation:
+            if not self.check_pause(text):
                 text += "."
 
             if len(text) > 20:
@@ -407,7 +410,7 @@ class TTS:
                         silence = torch.zeros((int(cut_mute * cut_mute_scale * self.samplerate),), dtype=audio.dtype, device=audio.device)
                         audio = torch.concatenate([audio, silence])
 
-                        if subtitles[-1]['text'] not in self.punctuation:
+                        if not self.check_pause(subtitles[-1]['text']):
                             subtitles.append({
                                 "text": word2ph['word'][-1],
                                 "start_s": subtitles[-1]['end_s'],
@@ -503,7 +506,7 @@ class TTS:
         try:
             if isinstance(texts, str):
                 texts = [texts]
-            texts = [t if t.endswith(tuple(self.punctuation)) else t + "." for t in texts]
+            texts = [t if self.check_pause(t) else t + "." for t in texts]
 
             if not is_cut_text: cut_minlen = 10000
 
@@ -712,7 +715,7 @@ class TTS:
                     assign = self._viterbi_monotonic(attn)
                     subtitles = self._get_subtitles(curr_word2ph, assign, speed)
 
-                    if subtitles[-1]['text'] not in self.punctuation:
+                    if not self.check_pause(subtitles[-1]['text']):
                         subtitles.append({
                             "text": curr_word2ph['word'][-1],
                             "start_s": subtitles[-1]['end_s'],
@@ -843,7 +846,7 @@ class TTS:
         """
 
         try:
-            if prompt_audio_text[-1] not in self.punctuation:
+            if not self.check_pause(prompt_audio_text):
                 prompt_audio_text += "."
 
             logging.info(f"Starting VC inference. Prompt audio: {prompt_audio_path}")
@@ -883,7 +886,7 @@ class TTS:
             assign = self._viterbi_monotonic(attn)
             subtitles = self._get_subtitles(word2ph, assign, speed)
             
-            if subtitles[-1]['text'] not in self.punctuation:
+            if not self.check_pause(subtitles[-1]['text']):
                 subtitles.append({
                     "text": word2ph['word'][-1],
                     "start_s": subtitles[-1]['end_s'],
@@ -1250,6 +1253,9 @@ class TTS:
         
         finally:
             self._empty_cache()
+    
+    def check_pause(self, text: str):
+        return text.endswith(self.punctuation) or text[-3:] == "..."
     
     def _get_prompt(self, cnhubert_model: CNHubert, sovits_model: Sovits, audio_path: str):
         wav, sr = torchaudio.load(audio_path)

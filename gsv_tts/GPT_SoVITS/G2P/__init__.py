@@ -1,8 +1,5 @@
-import os
-from pathlib import Path
-
 from . import Symbols
-from ...config import global_config
+from ...Config import global_config
 
 
 symbol_to_id = {s: i for i, s in enumerate(Symbols.symbols)}

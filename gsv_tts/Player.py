@@ -1,6 +1,7 @@
 import os
 import json
 import queue
+import numpy as np
 import soundfile as sf
 import threading
 try:
@@ -75,10 +76,15 @@ class AudioClip:
         self.subtitles = subtitles
         self.orig_text = orig_text
     
-    def play(self):
+    def play(self, volume: float = 1.0):
         """
         Adds the audio data to the playback queue for sequential output.
         """
+
+        if volume != 1.0:
+            self.audio_data = self.audio_data * volume
+            self.audio_data = np.clip(self.audio_data, -1.0, 1.0)
+
         self.audio_queue.put(self.audio_data)
     
     def save(self, save_path: str, is_save_subtitles: bool = False):

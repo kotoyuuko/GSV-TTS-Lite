@@ -583,7 +583,7 @@ class Text2SemanticDecoder(nn.Module):
 
         bucket.kv_cache_len[:actual_batch_size].copy_(xy_lens)
 
-        samples = sample(logits[:, :-1], pre_tokens[:actual_batch_size], top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, temperature=temperature)[0]
+        samples = sample(logits[:, :-1], pre_tokens[:actual_batch_size], pre_tokens_lens=bucket.kv_cache_len[:actual_batch_size], top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, temperature=temperature)[0]
         pre_tokens[batch_indices, bucket.kv_cache_len][:actual_batch_size] = samples.squeeze()
         y_emb = self.ar_audio_embedding(samples)
         xy_pos = y_emb * self.ar_audio_position.x_scale + pe_cache[bucket.kv_cache_len][:actual_batch_size]
@@ -620,7 +620,7 @@ class Text2SemanticDecoder(nn.Module):
 
                 logits = self.ar_predict_layer(xy_dec[:, -1])
 
-                samples = sample(logits, pre_tokens, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, temperature=temperature)[0]
+                samples = sample(logits, pre_tokens, pre_tokens_lens=bucket.kv_cache_len, top_k=top_k, top_p=top_p, repetition_penalty=repetition_penalty, temperature=temperature)[0]
                 
                 is_reached = bucket.kv_cache_len == bucket.max_kv_cache
                 if is_reached.any():

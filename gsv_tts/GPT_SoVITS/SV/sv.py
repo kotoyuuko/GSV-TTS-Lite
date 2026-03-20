@@ -1,5 +1,5 @@
 import torch
-from ...config import Config
+from ...Config import Config
 from .ERes2NetV2 import ERes2NetV2
 import torchaudio.compliance.kaldi as Kaldi
 

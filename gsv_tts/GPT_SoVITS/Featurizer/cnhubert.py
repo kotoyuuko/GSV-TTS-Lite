@@ -13,7 +13,7 @@ from transformers import (
 
 import torch.nn as nn
 import torch
-from ...config import Config
+from ...Config import Config
 
 
 class CNHubert(nn.Module):

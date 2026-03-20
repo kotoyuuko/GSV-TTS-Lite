@@ -3,7 +3,7 @@ import torch
 import pysbd
 import bisect
 
-from .config import Config
+from .Config import Config
 from .LangSegment import LangSegment
 from .GPT_SoVITS.G2P import phonemes_to_ids, text_to_phonemes
 
@@ -11,10 +11,9 @@ seg = pysbd.Segmenter()
 
 
 def get_semantic_length(text, en_weight=1.75):
-    cn_count = len(re.findall(r'[\u4e00-\u9fff]', text))
+    cjk_count = len(re.findall(r'[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fa5\uff66-\uff9f]', text)) # 中日统一
     en_count = len(re.findall(r'[a-zA-Z0-9]+', text))
-    ja_count = len(re.findall(r'[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff66-\uff9f]', text)) - cn_count
-    return cn_count + (en_count * en_weight) + ja_count
+    return cjk_count + (en_count * en_weight)
 
 def cut_text(text, cut_minlen=10):
     sentences = seg.segment(text)

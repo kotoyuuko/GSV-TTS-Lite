@@ -5,7 +5,7 @@ import hashlib
 from io import BytesIO
 from safetensors.torch import load_model
 
-from .config import Config
+from .Config import Config
 from .GPT_SoVITS.SoVITS.models import SynthesizerTrn
 from .GPT_SoVITS.GPT.t2s_model import Text2SemanticDecoder
 from .GPT_SoVITS import utils
