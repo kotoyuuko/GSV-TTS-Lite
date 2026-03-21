@@ -69,6 +69,7 @@ As shown, **GSV-TTS-Lite** achieves **3x ~ 4x** speed improvements while **halvi
 
 ### Prerequisites
 
+- **FFmpeg**
 - **CUDA Toolkit**
 > [!IMPORTANT]
 > The current version provides full support for CUDA, MPS (Apple Silicon), and CPU inference backends.
@@ -79,16 +80,34 @@ As shown, **GSV-TTS-Lite** achieves **3x ~ 4x** speed improvements while **halvi
 #### 1. Environment Configuration
 It is recommended to create a virtual environment using Python >=3.10.
 ```bash
-# Install PyTorch
+# NVIDIA GPU (CUDA 12.8)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Apple Silicon (MPS) or Linux/Windows (CPU Only)
+pip install torch torchvision torchaudio
 ```
 #### 2.	Install GSV-TTS-Lite
 If you have prepared the above basic environment, you can directly execute the following command to complete the integration:
-```bash
-pip install gsv-tts-lite==0.3.3
+```bash 
+pip install gsv-tts-lite==0.3.7
 ```
 
-### Quick Start
+### WebUI Visual Interface
+
+> [!TIP]
+> The WebUI module is decoupled from the local source code; it directly calls the published `gsv-tts-lite` package.
+
+1. **Install Dependencies**：
+  ```bash
+  cd WebUI
+  pip install -r requirements.txt
+  ```
+2. **Launch Program**：
+  ```bash
+  python web.py
+  ```
+
+### Python SDK Interface
 
 > [!TIP]
 > The program will automatically download the required pre-trained models upon the first run.
@@ -115,7 +134,7 @@ tts.load_sovits_model()
 #     prompt_audio_texts="ちが……ちがう。レイア、貴様は間違っている。",
 # )
 
-# 'infer' is the simplest and most basic inference method, suitable for short text generation.
+# infer is the most rudimentary and basic inference method, suitable only for short text. It is generally recommended to use infer_batched instead of infer.
 audio = tts.infer(
     spk_audio_path="examples\laffey.mp3", # Voice reference audio (Timbre)
     prompt_audio_path="examples\AnAn.ogg", # Style reference audio (Prompt)

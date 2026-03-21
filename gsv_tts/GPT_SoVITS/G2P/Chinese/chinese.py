@@ -1,49 +1,35 @@
 import re
 
-import cn2an
 from pypinyin import lazy_pinyin, Style
 from typing import List
 
-from ..Symbols import punctuation
+from ..Pause import pause_map, escaped_pause
 from .tone_sandhi import ToneSandhi
 from .Normalization.text_normlization import TextNormalizer
 
-import jieba
-import logging
+from ....Config import global_config
 
+if global_config.use_jieba_fast:
+    import jieba_fast as jieba
+    import jieba_fast.posseg as psg
+else:
+    import jieba
+    import jieba.posseg as psg
+
+import logging
 jieba.setLogLevel(logging.CRITICAL)
-import jieba.posseg as psg
+
 from pathlib import Path
 
 
 class ChineseG2P:
     def __init__(self, models_dir):
-        self.normalizer = lambda x: cn2an.transform(x, "an2cn")
-
         self.pinyin_to_symbol_map = {
             line.split("\t")[0]: line.strip().split("\t")[1]
             for line in open(Path(models_dir) / "g2p" / "zh" / "opencpop-strict.txt").readlines()
         }
 
         self.tone_modifier = ToneSandhi()
-
-        self.rep_map = {
-            "：": ",",
-            "；": ",",
-            "，": ",",
-            "。": ".",
-            "！": "!",
-            "？": "?",
-            "\n": ".",
-            "·": ",",
-            "、": ",",
-            "...": "…",
-            "$": ".",
-            "/": ",",
-            "—": "-",
-            "~": "…",
-            "～": "…",
-        }
 
         self.must_erhua = {"小院儿", "胡同儿", "范儿", "老汉儿", "撒欢儿", "寻老礼儿", "妥妥儿", "媳妇儿"}
         
@@ -93,16 +79,6 @@ class ChineseG2P:
             "狗儿",
             "少儿",
         }
-
-    def replace_punctuation(self, text):
-        text = text.replace("嗯", "恩").replace("呣", "母")
-        pattern = re.compile("|".join(re.escape(p) for p in self.rep_map.keys()))
-
-        replaced_text = pattern.sub(lambda x: self.rep_map[x.group()], text)
-
-        replaced_text = re.sub(r"[^\u4e00-\u9fa5" + "".join(punctuation) + r"]+", "", replaced_text)
-
-        return replaced_text
 
     def _get_initials_finals(self, word):
         initials = []
@@ -185,7 +161,7 @@ class ChineseG2P:
                 # NOTE: post process for pypinyin outputs
                 # we discriminate i, ii and iii
                 if c == v:
-                    assert c in punctuation
+                    assert c in pause_map.keys()
                     phone = [c]
                     word2ph["ph"].append(1)
                 else:
@@ -233,26 +209,18 @@ class ChineseG2P:
                 phones_list += phone
         return phones_list, word2ph
 
-    def replace_consecutive_punctuation(self, text):
-        punctuations = "".join(re.escape(p) for p in punctuation)
-        pattern = f"([{punctuations}])([{punctuations}])+"
-        result = re.sub(pattern, r"\1", text)
-        return result
-
     def text_normalize(self, text):
-        # https://github.com/PaddlePaddle/PaddleSpeech/tree/develop/paddlespeech/t2s/frontend/zh_normalization
         tx = TextNormalizer()
         sentences = tx.normalize(text)
-        dest_text = ""
-        for sentence in sentences:
-            dest_text += self.replace_punctuation(sentence)
-
-        # 避免重复标点引起的参考泄露
-        dest_text = self.replace_consecutive_punctuation(dest_text)
-        return dest_text
+        text = "".join(sentences)
+        
+        text = re.sub(f"[^\u4e00-\u9fa5{escaped_pause}]", '', text) # 匹配 非汉字、非允许标点 的所有字符并替换为空
+        
+        text = text.replace("嗯", "恩").replace("呣", "母")
+        return text
     
     def g2p(self, text):
-        pattern = r"(?<=[{0}])\s*".format("".join(punctuation))
+        pattern = r"(?<=[{0}])\s*".format("".join(pause_map.keys()))
         sentences = [i for i in re.split(pattern, text) if i.strip() != ""]
         phones, word2ph = self._g2p(sentences)
         return phones, word2ph

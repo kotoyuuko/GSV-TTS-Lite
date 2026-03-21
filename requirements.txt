@@ -1,4 +1,3 @@
-static-ffmpeg
 einops
 tqdm
 torchcodec
@@ -9,14 +8,15 @@ numpy
 py3langid
 pysbd
 onnxruntime
+soundfile
 
 # en
 nltk
 future
+inflect
 wordsegment
 
 # zh
-cn2an
 pypinyin
 jieba
 

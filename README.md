@@ -87,6 +87,7 @@
 
 ### 环境准备
 
+- **FFmpeg**
 - **CUDA Toolkit**
 > [!IMPORTANT]
 > 当前版本已全面支持 **CUDA**、**MPS (Apple Silicon)** 及 **CPU** 推理后端。
@@ -97,16 +98,34 @@
 #### 1. 环境配置
 建议使用 Python>=3.10 创建虚拟环境。
 ```bash
-# 安装 PyTorch
+# NVIDIA GPU (CUDA 12.8)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+# Apple Silicon (MPS) 或 Linux/Windows (仅 CPU)
+pip install torch torchvision torchaudio
 ```
 #### 2. 安装 GSV-TTS-Lite
 若已准备好上述基础环境，可直接执行以下命令完成集成：
-```bash
-pip install gsv-tts-lite==0.3.3
+```bash 
+pip install gsv-tts-lite==0.3.7
 ```
 
-### 快速使用
+### WebUI 可视化界面
+
+> [!TIP]
+> WebUI 模块与本地源码解耦，它直接调用已发布的`gsv-tts-lite`。
+
+1. **安装依赖**：
+  ```bash
+  cd WebUI
+  pip install -r requirements.txt
+  ```
+2. **启动程序**：
+  ```bash
+  python web.py
+  ```
+
+### Python SDK 接口调用
 
 > [!TIP]
 > 首次运行时，程序会自动下载所需的预训练模型。
@@ -133,7 +152,7 @@ tts.load_sovits_model()
 #     prompt_audio_texts="ちが……ちがう。レイア、貴様は間違っている。",
 # )
 
-# infer 是最简单、最原始的推理方式，适用于短文本推理。
+# infer 是最简单、最原始的推理方式，只适用于短文本推理，一般建议用 infer_batched 替代 infer 推理。
 audio = tts.infer(
     spk_audio_path="examples\laffey.mp3", # 音色参考音频
     prompt_audio_path="examples\AnAn.ogg", # 风格参考音频

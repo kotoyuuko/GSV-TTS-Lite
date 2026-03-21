@@ -1,7 +1,13 @@
 from typing import List
 from typing import Tuple
 
-import jieba
+from ....Config import global_config
+
+if global_config.use_jieba_fast:
+    import jieba_fast as jieba
+else:
+    import jieba
+
 from pypinyin import lazy_pinyin
 from pypinyin import Style
 

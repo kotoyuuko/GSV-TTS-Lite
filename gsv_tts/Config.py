@@ -103,6 +103,8 @@ class GlobalConfig:
     def __init__(self):
         self.models_dir = None
 
+        self.use_jieba_fast = None
+
         self.chinese_g2p = None
         self.japanese_g2p = None
         self.english_g2p = None

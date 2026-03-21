@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ...config import Config
+from ...Config import Config
 from transformers import AutoModelForMaskedLM, AutoTokenizer
 from typing import List
 

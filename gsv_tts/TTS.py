@@ -21,14 +21,15 @@ from torch.nn import functional as F
 from safetensors.torch import save_model
 
 from .Loader import get_gpt_weights, get_sovits_weights, Gpt, Sovits
-from .download import check_pretrained_models, download_model
+from .Download import check_pretrained_models, download_model
 from .TextProcessor import get_phones_and_bert, cut_text, sub2text_index
 from .GPT_SoVITS.Featurizer import CNHubert, CNRoberta
 from .GPT_SoVITS.SV import ERes2Net
 from .GPT_SoVITS.SoVITS.module.mel_processing import spectrogram_torch
 from .GPT_SoVITS.G2P import text_to_phonemes
 from .Player import AudioQueue, AudioClip
-from .config import Config, global_config
+from .Config import Config, global_config
+from .GPT_SoVITS.G2P import Pause
 
 
 class TTS:
@@ -41,6 +42,7 @@ class TTS:
         is_half: bool = None,
         use_flash_attn: bool = False,
         use_bert: bool = False,
+        use_jieba_fast: bool = False,
         always_load_cnhubert: bool = False,
         always_load_sv: bool = False,
     ):
@@ -55,6 +57,7 @@ class TTS:
             is_half (bool): Whether to use half-precision (FP16) inference.
             use_flash_attn (bool): Whether to enable Flash Attention for faster inference.
             use_bert (bool): Whether to use BERT for enhanced Chinese semantic understanding.
+            use_jieba_fast (bool): Whether to use jieba-fast for faster Chinese text segmentation. jieba-fast needs to be installed.
             always_load_cnhubert (bool): Whether to keep the CNHubert model loaded in VRAM. Set to True to accelerate Voice Conversion.
             always_load_sv (bool): Whether to keep the Speaker Verification model loaded in VRAM. Set to True to accelerate Speaker Verification.
         """
@@ -73,6 +76,7 @@ class TTS:
         if models_dir is None: models_dir = Path.home() / ".cache" / "gsv"
         self.models_dir = models_dir
         if global_config.models_dir is None: global_config.models_dir = models_dir
+        if global_config.use_jieba_fast is None: global_config.use_jieba_fast = use_jieba_fast
         self.tts_config.use_flash_attn = use_flash_attn
         self.tts_config.gpt_cache = gpt_cache
         self.tts_config.sovits_cache = sovits_cache
@@ -100,7 +104,7 @@ class TTS:
         self.cnhubert_model = None
         self.sv_model = None
 
-        self.punctuation = {".", "。", "?", "？", "!", "！", ",", "，", ":", "：", ";", "；", "、", "・"}
+        self.punctuation = tuple(Pause.pause_map.keys())
 
         self.samplerate = 32000
         self.gpt_hz = 25
@@ -119,8 +123,8 @@ class TTS:
         prompt_audio_path: str,
         prompt_audio_text: str,
         text: str,
-        top_k: int = 5,
-        top_p: float = 0.9,
+        top_k: int = 15,
+        top_p: float = 1.0,
         temperature: float = 1.0,
         repetition_penalty: float = 1.35,
         noise_scale: float = 0.5,
@@ -157,7 +161,7 @@ class TTS:
         """
 
         try:
-            if text[-1] not in self.punctuation:
+            if not self.check_pause(text):
                 text += "."
 
             if len(text) > 20:
@@ -212,7 +216,7 @@ class TTS:
             assign = self._viterbi_monotonic(attn)
             subtitles = self._get_subtitles(word2ph, assign, speed)
 
-            if subtitles[-1]['text'] not in self.punctuation:
+            if not self.check_pause(subtitles[-1]['text']):
                 subtitles.append({
                     "text": word2ph['word'][-1],
                     "start_s": subtitles[-1]['end_s'],
@@ -248,13 +252,13 @@ class TTS:
         is_cut_text: bool = True,
         cut_minlen: int = 10,
         cut_mute: int = 0.2,
-        cut_mute_scale_map: dict = {".": 1.5, "。": 1.5, "?": 1.5, "？": 1.5, "!": 1.5, "！": 1.5,",": 0.8, "，": 0.8, "、": 0.6, "・": 0.6},
+        cut_mute_scale_map: dict = {".": 1.5, "。": 1.5, "?": 1.5, "？": 1.5, "!": 1.5, "！": 1.5, "…": 1.5, ",": 0.8, "，": 0.8, ":": 0.8, "：": 0.8, ";": 0.8, "；": 0.8, "~": 0.8, "、": 0.6, "・": 0.6},
         stream_mode: Literal["token", "sentence"] = "token",
         stream_chunk: int = 25,
         overlap_len: int = 10,
         boost_first_chunk: bool = True,
-        top_k: int = 5,
-        top_p: float = 0.9,
+        top_k: int = 15,
+        top_p: float = 1.0,
         temperature: float = 1.0,
         repetition_penalty: float = 1.35,
         noise_scale: float = 0.5,
@@ -301,7 +305,7 @@ class TTS:
         """
 
         try:
-            if text[-1] not in self.punctuation:
+            if not self.check_pause(text):
                 text += "."
 
             if len(text) > 20:
@@ -407,7 +411,7 @@ class TTS:
                         silence = torch.zeros((int(cut_mute * cut_mute_scale * self.samplerate),), dtype=audio.dtype, device=audio.device)
                         audio = torch.concatenate([audio, silence])
 
-                        if subtitles[-1]['text'] not in self.punctuation:
+                        if not self.check_pause(subtitles[-1]['text']):
                             subtitles.append({
                                 "text": word2ph['word'][-1],
                                 "start_s": subtitles[-1]['end_s'],
@@ -452,9 +456,9 @@ class TTS:
         is_cut_text: bool = True,
         cut_minlen: int = 10,
         cut_mute: int = 0.2,
-        cut_mute_scale_map: dict = {".": 1.5, "。": 1.5, "?": 1.5, "？": 1.5, "!": 1.5, "！": 1.5,",": 0.8, "，": 0.8, "、": 0.6, "・": 0.6},
-        top_k: int = 5,
-        top_p: float = 0.9,
+        cut_mute_scale_map: dict = {".": 1.5, "。": 1.5, "?": 1.5, "？": 1.5, "!": 1.5, "！": 1.5, "…": 1.5, ",": 0.8, "，": 0.8, ":": 0.8, "：": 0.8, ";": 0.8, "；": 0.8, "~": 0.8, "、": 0.6, "・": 0.6},
+        top_k: int = 15,
+        top_p: float = 1.0,
         temperature: float = 1.0,
         repetition_penalty: float = 1.35,
         noise_scale: float = 0.5,
@@ -503,7 +507,7 @@ class TTS:
         try:
             if isinstance(texts, str):
                 texts = [texts]
-            texts = [t if t.endswith(tuple(self.punctuation)) else t + "." for t in texts]
+            texts = [t if self.check_pause(t) else t + "." for t in texts]
 
             if not is_cut_text: cut_minlen = 10000
 
@@ -554,6 +558,14 @@ class TTS:
             
             n_orig = len(texts)
             n_segs = len(all_segments)
+            
+            # 处理空文本段的情况
+            if n_segs == 0:
+                # 为每个原始文本添加一个空段
+                for idx, text in enumerate(texts):
+                    all_segments.append(text or " ")
+                    segment_to_original_map.append(idx)
+                n_segs = len(all_segments)
 
             def expand_input(inp):
                 return [inp[segment_to_original_map[i]] for i in range(n_segs)]
@@ -704,7 +716,7 @@ class TTS:
                     assign = self._viterbi_monotonic(attn)
                     subtitles = self._get_subtitles(curr_word2ph, assign, speed)
 
-                    if subtitles[-1]['text'] not in self.punctuation:
+                    if not self.check_pause(subtitles[-1]['text']):
                         subtitles.append({
                             "text": curr_word2ph['word'][-1],
                             "start_s": subtitles[-1]['end_s'],
@@ -835,7 +847,7 @@ class TTS:
         """
 
         try:
-            if prompt_audio_text[-1] not in self.punctuation:
+            if not self.check_pause(prompt_audio_text):
                 prompt_audio_text += "."
 
             logging.info(f"Starting VC inference. Prompt audio: {prompt_audio_path}")
@@ -875,7 +887,7 @@ class TTS:
             assign = self._viterbi_monotonic(attn)
             subtitles = self._get_subtitles(word2ph, assign, speed)
             
-            if subtitles[-1]['text'] not in self.punctuation:
+            if not self.check_pause(subtitles[-1]['text']):
                 subtitles.append({
                     "text": word2ph['word'][-1],
                     "start_s": subtitles[-1]['end_s'],
@@ -1243,6 +1255,9 @@ class TTS:
         finally:
             self._empty_cache()
     
+    def check_pause(self, text: str):
+        return text.endswith(self.punctuation) or text[-3:] == "..."
+    
     def _get_prompt(self, cnhubert_model: CNHubert, sovits_model: Sovits, audio_path: str):
         wav, sr = torchaudio.load(audio_path)
         wav = wav.to(self.tts_config.device)
@@ -1314,7 +1329,7 @@ class TTS:
         f2_real = torch.cat([f_faded, f2_aligned[:, :, overlap_len:]], dim=-1)
         return f2_real, offset
     
-    def _find_quietest_offsets(self, audio, frame_length=512, hop_length=256, search_len=6400):
+    def _find_quietest_offsets(self, audio, frame_length=512, hop_length=256, search_len=3200):
         search_audio = audio[:search_len]
         frames = search_audio.unfold(0, frame_length, hop_length)
         rms_values = torch.sqrt(torch.mean(frames**2, dim=1))
@@ -1323,7 +1338,7 @@ class TTS:
         
         return head_offset
 
-    def _find_threshold_offsets(self, audio, threshold=0.01, frame_length=512, hop_length=256, search_len=6400):
+    def _find_threshold_offsets(self, audio, threshold=0.01, frame_length=512, hop_length=256, search_len=3200):
         threshold = threshold * audio.max()
 
         search_audio_tail = audio[-search_len:]
