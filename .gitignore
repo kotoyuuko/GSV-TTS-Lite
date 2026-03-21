@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Model files
+*.pth
+*.pt
+*.ckpt
+*.bin
+
+# Audio files
+*.wav
+*.mp3
+*.flac
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
